@@ -1,4 +1,4 @@
-all: main minishell
+all: main minishell shell
 main: main.c 
 	gcc -o main main.c 
 debug: main.c
@@ -6,3 +6,5 @@ debug: main.c
 	gdb main
 minishell: minishell.c
 	gcc -o minishell minishell.c
+shell: shell.c
+	gcc -o shell shell.c
