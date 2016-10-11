@@ -34,6 +34,7 @@ int main(int argc, char** argv)
 			if(read(kolejka, &n, sizeof(n)) < 0)
    				perror("Błąd odczytu");
    			printf("%d ", n);
+   			msleep(2);
    		}
 		exit(0);
 	}
