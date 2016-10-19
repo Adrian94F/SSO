@@ -7,4 +7,4 @@ debug: main.c
 minishell: minishell.c
 	gcc -o minishell minishell.c
 shell: shell.c
-	gcc -o shell shell.c
+	gcc -o shell shell.c -ansi

@@ -5,14 +5,24 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+void splash()
+{
+	printf("*** MuzikPlejer ***\n  Sterowanie:\n   spacja  pauza\n   q       wyjście\n   -       przewiń w tył\n   =       przewiń w przód\n   [       zmniejsz prędkośc odtwarzania\n   ]       zwiększ prędkośc odtwarzania\n\n");
+}
+
+
 int main(int argc, char** argv)
 {
+	if (argc < 1)
+	{
+		printf("USAGE: muzikplejer file_path\n");
+		return -1;
+	}
 	FILE* fifo;
-	int enabled = 1, pid, sid;
+	int enabled = 1, pid;
 	char key = 0;
-	char * myfifo = "./kolejka";
+	char * myfifo = "./.p";
 	mknod(myfifo, S_IFIFO | 0666, 0);
-	perror("mknod");
 
 	pid = fork();
 	switch (pid)
@@ -22,26 +32,21 @@ int main(int argc, char** argv)
 			return -1;
 		case 0:
 			/* dziecko */
-			/* Change the file mode mask */
-    		umask(0);
-    		/* chdir("/"); */
-    		/* Create a new SID for the child process */
-    		sid = setsid();
-    		if (sid < 0) {
-    		    exit(-1);
-    		}
-    		/* Redirect standard files to /dev/null */
-    		freopen("/dev/null", "r", stdin);
-    		freopen("/dev/null", "w", stdout);
-    		freopen("/dev/null", "w", stderr);
-			execlp("mplayer", "mplayer", "-noconsolecontrols", "-input", "file=kolejka", "Layla.mp3", "&", NULL);
+			/* przekierowanie wejścia i wyjść do /dev/null */
+			freopen("/dev/null", "r", stdin);
+			freopen("/dev/null", "w", stdout);
+			freopen("/dev/null", "w", stderr);
+			/* uruchomienie odtwarzacza */
+			execlp("mplayer", "mplayer", "-input", "file=./.p", argv[1], "&", NULL);
 			break;
 		default:
 			/* rodzic */
+			splash();
 			do
 			{
-				/* wymuszenie wysyłania przez terminal kazdego naciśnięcia klawisza do stdin */
-				system("stty raw");
+				/* wymuszenie wysyłania przez terminal kazdego naciśnięcia klawisza do stdin 
+				+ wyłączenie wyświetlania wciśniętych klawiszy */
+				system("stty raw -echo");
 				do
 				{
 					key = getchar();
@@ -49,39 +54,33 @@ int main(int argc, char** argv)
 				while(key == '\n');
 				/* powrót do normalnego trybu */
 				system ("stty cooked");
-				printf(" - %d\n", key);
+				/* printf(" - %d\n", key); */
 				
 				fifo = fopen(myfifo, "w");
-				perror("fopen");
 				switch(key)
 				{
 					case 'q':
 						fprintf(fifo, "quit\n" );
-						printf("End!\n");
+						printf("Koniec!\n");
 						enabled = 0;
 						break;
-					/*case 27:
-						fprintf(fifo, "quit\n" );
-						printf("End!\n");
-						enabled = 0;
-						break;*/
-					case 'p':
+					case 32:
 						fprintf(fifo, "pause\n");
 						break;
-					case 'a':
+					case '[':
 						fprintf(fifo, "speed_incr -0.25\n");
 						break;
-					case 'd':
+					case ']':
 						fprintf(fifo, "speed_incr 0.25\n");
 						break;
-					case 'z':
+					case '-':
 						fprintf(fifo, "seek -10\n");
 						break;
-					case 'x':
+					case '=':
 						fprintf(fifo, "seek 10\n");
 						break;
 					default:
-						printf("Wrong command %c (%d)\n", key, key);
+						/* printf("Wrong command %c\n", key); */
 						break;
 				}
 				fclose(fifo);
