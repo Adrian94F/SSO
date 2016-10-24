@@ -52,7 +52,6 @@ int main(int argc, char **argv)
 					return -1;
 				case 0:
 					/* dziecko 2 */
-					splash();
 					do
 					{
 						/* wymuszenie wysyłania przez terminal kazdego naciśnięcia klawisza do stdin 
@@ -73,14 +72,14 @@ int main(int argc, char **argv)
 								fprintf(fifo, "quit\n" );
 								enabled = 0;
 								break;
-							case 32:
+							case ' ':
 								fprintf(fifo, "pause\n");
 								break;
 							case '[':
-								fprintf(fifo, "speed_incr -0.2\n");
+								fprintf(fifo, "speed_incr -0.25\n");
 								break;
 							case ']':
-								fprintf(fifo, "speed_incr 0.2\n");
+								fprintf(fifo, "speed_incr 0.25\n");
 								break;
 							case '-':
 								fprintf(fifo, "seek -10\n");
@@ -95,6 +94,7 @@ int main(int argc, char **argv)
 					exit(0);
 				default:
 					/* rodzic */
+					splash();
 					/* zabij się, jeśli dziecko umrze */
 					while(1)
 					{
