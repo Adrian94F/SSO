@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	FILE *fifo;
-	int enabled = 1, pid, status;
+	int enabled = 1, pid, pid2, status;
 	char key = 0;
 	char *myfifo = "./.p";
 	mknod(myfifo, S_IFIFO | 0666, 0);
@@ -44,54 +44,70 @@ int main(int argc, char **argv)
 			break;
 		default:
 			/* rodzic */
-			splash();
-			do
+			pid2 = fork();
+			switch (pid2)
 			{
-				/* wymuszenie wysyłania przez terminal kazdego naciśnięcia klawisza do stdin 
-				+ wyłączenie wyświetlania wciśniętych klawiszy */
-				system("stty raw -echo");
-				do
-				{
-					key = getchar();
-				}
-				while(key == '\n');
-				/* powrót do normalnego trybu */
-				system ("stty cooked");
-				/* printf(" - %d\n", key); */
-				
-
-				if ((pid = waitpid(-1, &status, WNOHANG)) > 0)
-				{
-					printf(" Koniec odtwarzania.\n");
-					return 0;
-				}
-				fifo = fopen(myfifo, "w");
-				switch(key)
-				{
-					case 'q':
-						fprintf(fifo, "quit\n" );
-						printf("Koniec!\n");
-						enabled = 0;
-						break;
-					case 32:
-						fprintf(fifo, "pause\n");
-						break;
-					case '[':
-						fprintf(fifo, "speed_incr -0.2\n");
-						break;
-					case ']':
-						fprintf(fifo, "speed_incr 0.2\n");
-						break;
-					case '-':
-						fprintf(fifo, "seek -10\n");
-						break;
-					case '=':
-						fprintf(fifo, "seek 10\n");
-						break;
-				}
-				fclose(fifo);
+				case -1:
+					perror("BŁĄD BARDZO KRYTYCZNY - fork:");
+					return -1;
+				case 0:
+					/* dziecko 2 */
+					splash();
+					do
+					{
+						/* wymuszenie wysyłania przez terminal kazdego naciśnięcia klawisza do stdin 
+						   wyłączenie wyświetlania wciśniętych klawiszy */
+						system("stty raw -echo");
+						do
+						{
+							key = getchar();
+						}
+						while(key == '\n');
+						/* powrót do normalnego trybu */
+						system ("stty cooked");
+						/* wysłanie komendy do kolejki */
+						fifo = fopen(myfifo, "w");
+						switch(key)
+						{
+							case 'q':
+								fprintf(fifo, "quit\n" );
+								enabled = 0;
+								break;
+							case 32:
+								fprintf(fifo, "pause\n");
+								break;
+							case '[':
+								fprintf(fifo, "speed_incr -0.2\n");
+								break;
+							case ']':
+								fprintf(fifo, "speed_incr 0.2\n");
+								break;
+							case '-':
+								fprintf(fifo, "seek -10\n");
+								break;
+							case '=':
+								fprintf(fifo, "seek 10\n");
+								break;
+						}
+						fclose(fifo);
+					}
+					while(enabled);
+					exit(0);
+				default:
+					/* rodzic */
+					/* zabij się, jeśli dziecko umrze */
+					while(1)
+					{
+						if ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+						{
+							printf(" Koniec odtwarzania.\n");
+							kill(pid2, SIGKILL);
+							system ("stty cooked");
+							return 0;
+						}
+						sleep(1);
+					}
 			}
-			while(enabled);
 	}
 	return 0;
 }
