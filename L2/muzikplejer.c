@@ -4,24 +4,27 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 void splash()
 {
-	printf("*** MuzikPlejer ***\n  Sterowanie:\n   spacja  pauza\n   q       wyjście\n   -       przewiń w tył\n   =       przewiń w przód\n   [       zmniejsz prędkośc odtwarzania\n   ]       zwiększ prędkośc odtwarzania\n\n");
+	printf("*** MuzikPlejer ***\n  Sterowanie:\n   spacja  pauza\n   q       wyjście\n   -       przewiń w tył\n   =       przewiń w przód\n   [       zmniejsz prędkość odtwarzania\n   ]       zwiększ prędkość odtwarzania\n\n");
 }
 
 
-int main(int argc, char** argv)
+
+int main(int argc, char **argv)
 {
 	if (argc < 1)
 	{
 		printf("USAGE: muzikplejer file_path\n");
 		return -1;
 	}
-	FILE* fifo;
-	int enabled = 1, pid;
+	FILE *fifo;
+	int enabled = 1, pid, status;
 	char key = 0;
-	char * myfifo = "./.p";
+	char *myfifo = "./.p";
 	mknod(myfifo, S_IFIFO | 0666, 0);
 
 	pid = fork();
@@ -31,7 +34,7 @@ int main(int argc, char** argv)
 			perror("BŁĄD BARDZO KRYTYCZNY - fork:");
 			return -1;
 		case 0:
-			/* dziecko */
+			/* dziecko 1 */
 			/* przekierowanie wejścia i wyjść do /dev/null */
 			freopen("/dev/null", "r", stdin);
 			freopen("/dev/null", "w", stdout);
@@ -56,6 +59,12 @@ int main(int argc, char** argv)
 				system ("stty cooked");
 				/* printf(" - %d\n", key); */
 				
+
+				if ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+				{
+					printf(" Koniec odtwarzania.\n");
+					return 0;
+				}
 				fifo = fopen(myfifo, "w");
 				switch(key)
 				{
@@ -68,19 +77,16 @@ int main(int argc, char** argv)
 						fprintf(fifo, "pause\n");
 						break;
 					case '[':
-						fprintf(fifo, "speed_incr -0.25\n");
+						fprintf(fifo, "speed_incr -0.2\n");
 						break;
 					case ']':
-						fprintf(fifo, "speed_incr 0.25\n");
+						fprintf(fifo, "speed_incr 0.2\n");
 						break;
 					case '-':
 						fprintf(fifo, "seek -10\n");
 						break;
 					case '=':
 						fprintf(fifo, "seek 10\n");
-						break;
-					default:
-						/* printf("Wrong command %c\n", key); */
 						break;
 				}
 				fclose(fifo);
