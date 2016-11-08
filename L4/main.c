@@ -61,7 +61,7 @@ int main()
     	perror("shmat");
 
     // Semafory i czyszczenie
-    if(sem_init(&(data->waiterSem), 1, PHILOS - 2))
+    if(sem_init(&(data->waiterSem), 1, PHILOS - 1))
 	{ 
 		perror("mutex");
 		exit(0);  
