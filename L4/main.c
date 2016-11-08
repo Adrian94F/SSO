@@ -40,6 +40,7 @@ typedef struct
 	char forks[PHILOS];
 	char status[PHILOS];
 	int meals[PHILOS];
+	int tries[PHILOS];
 	sem_t waiterSem;
 	sem_t forksSem[PHILOS];
 }shmstruct;
@@ -53,6 +54,7 @@ int main()
 	int shmd;
 
 	signal(SIGINT, intHandler);
+
 	// Pamięć współdzielona
 	key = ftok("mem", 0);
 	shmd = shmget(key, sizeof(shmstruct), 0777 | IPC_CREAT);
@@ -91,36 +93,48 @@ int main()
 			case 0:
 				// Dzecko
 				srand(time(NULL) ^ getpid() << 16);
+				int left = i;
+				int right = (i+1)%PHILOS;
 				while(keepRunning)
 				{
 					// Filozof próbuje wejść
 					data->status[i] = 'w';
-					sem_wait(&(data->waiterSem));
-					// Próbuje wziąć widelec z prawej
-					int left = i;
-					int right = (i+1)%PHILOS;
-					data->status[i] = 'l';
-					sem_wait(&(data->forksSem[left]));
-					data->chairs[i] = '-';
-					data->forks[left] = 'l';
-					// Próbuje wziać z lewej
-					data->status[i] = 'r';
-					sem_wait(&(data->forksSem[right]));
-					data->forks[right] = 'r';
-					// Je
-					data->status[i] = 'e';
-					data->chairs[i] = 'V';
-					data->meals[i]++;
-					msleep(100+rand()%2000);
-					// Odkłada widelce
-					data->forks[left] = ' ';
-					sem_post(&(data->forksSem[left]));
-					data->forks[right] = ' ';
-					sem_post(&(data->forksSem[right]));
-					// Wstaje
-					data->chairs[i] = ' ';
-					data->status[i] = ' ';
-					sem_post(&(data->waiterSem));
+					if (sem_trywait(&(data->waiterSem)) == 0)
+					{
+						// Próbuje wziąć widelec z lewej
+						data->status[i] = 'l';
+						if (sem_trywait(&(data->forksSem[left])) == 0)
+						{
+							data->chairs[i] = '-';
+							data->forks[left] = 'l';
+							// Próbuje wziać z prawej
+							data->status[i] = 'r';
+							if (sem_wait(&(data->forksSem[right])) == 0)
+							{
+								data->forks[right] = 'r';
+								// Je
+								data->status[i] = 'e';
+								data->chairs[i] = 'V';
+								data->meals[i]++;
+								msleep(100+rand()%2000);
+								// Odkłada widelce
+								data->forks[left] = ' ';
+								sem_post(&(data->forksSem[left]));
+							}
+							else
+								data->tries[i]++;
+							data->forks[right] = ' ';
+							sem_post(&(data->forksSem[right]));
+						}
+						else
+							data->tries[i]++;
+						// Wstaje
+						data->chairs[i] = ' ';
+						data->status[i] = ' ';
+						sem_post(&(data->waiterSem));
+					}
+					else
+						data->tries[i]++;
 					msleep(1000+rand()%3000);
 				}
 				exit(0);
@@ -133,18 +147,18 @@ int main()
 	while(keepRunning)
 	{
 		clear();
-		printf("Widelce ");
+		printf("Filozof wchodzi do pokoju, siada, bierze lewy widelec, prawy, a następnie je. \nJeśli cokolwiek mu się nie uda, wychodzi w zadumie z pokoju zastanawiając się, \nco sprawiło, że nie mógł skonsumować obiadu i wraca po chwili.\n\n     Widelce ");
 		for (int i = 0; i < PHILOS; i++)
 			printf("[ %c ] ", data->forks[i]);
-		printf("\nMiejsca    ");
+		printf("\n     Miejsca    ");
 		for (int i = 0; i < PHILOS; i++)
 			printf("[ %c ] ", data->chairs[i]);
-		printf("\n\n--- Status filozofów ---\n _ - myśli, w - czeka, l - lewy, r - prawy, e - je\n");
+		printf("\n\n Status filozofów (_ - myśli, w - czeka, l - lewy, r - prawy, e - je)\n");
 		for (int i = 0; i < PHILOS; i++)
 		{
-			printf("   Filozof %d (status %c) jadł %d razy\n", i, data->status[i], data->meals[i]);
+			printf("     Filozof %d (status %c) jadł %d razy, nie udało mu się zjeść %d razy\n", i, data->status[i], data->meals[i], data->tries[i]);
 		}
-		msleep(5);
+		msleep(10);
 	}
 	shmdt(data);
 	shmctl(shmd, IPC_RMID, NULL);
