@@ -15,7 +15,7 @@
 #include <time.h>
 
 #define clear() printf("\033[H\033[J")
-#define PHILOS 3	// Liczba filozofow
+#define PHILOS 5		// Liczba filozofow
 
 static volatile int keepRunning = 1;
 
@@ -38,6 +38,8 @@ typedef struct
 {
 	char chairs[PHILOS];
 	char forks[PHILOS];
+	char status[PHILOS];
+	int meals[PHILOS];
 	sem_t waiterSem;
 	sem_t forksSem[PHILOS];
 }shmstruct;
@@ -59,7 +61,7 @@ int main()
     	perror("shmat");
 
     // Semafory i czyszczenie
-    if(sem_init(&(data->waiterSem), 1, PHILOS - 1))
+    if(sem_init(&(data->waiterSem), 1, PHILOS - 2))
 	{ 
 		perror("mutex");
 		exit(0);  
@@ -73,6 +75,8 @@ int main()
 		}
 		data->chairs[i] = ' ';
 		data->forks[i] = ' ';
+		data->status[i] = ' ';
+		data->meals[i] = 0;
 	}
 
 	// Tworzenie dzieci
@@ -83,25 +87,30 @@ int main()
 		{
 			case -1:
 				// Błąd
-				break;
+				exit(1);
 			case 0:
 				// Dzecko
 				srand(time(NULL) ^ getpid() << 16);
 				while(keepRunning)
 				{
 					// Filozof próbuje wejść
+					data->status[i] = 'w';
 					sem_wait(&(data->waiterSem));
 					// Próbuje wziąć widelec z prawej
-					int left = (i+1)%PHILOS;
-					int right = i;
+					int left = i;
+					int right = (i+1)%PHILOS;
+					data->status[i] = 'l';
 					sem_wait(&(data->forksSem[left]));
 					data->chairs[i] = '-';
 					data->forks[left] = 'l';
 					// Próbuje wziać z lewej
+					data->status[i] = 'r';
 					sem_wait(&(data->forksSem[right]));
 					data->forks[right] = 'r';
 					// Je
+					data->status[i] = 'e';
 					data->chairs[i] = 'V';
+					data->meals[i]++;
 					msleep(100+rand()%2000);
 					// Odkłada widelce
 					data->forks[left] = ' ';
@@ -110,9 +119,11 @@ int main()
 					sem_post(&(data->forksSem[right]));
 					// Wstaje
 					data->chairs[i] = ' ';
+					data->status[i] = ' ';
 					sem_post(&(data->waiterSem));
-					msleep(2000+rand()%5000);
+					msleep(1000+rand()%3000);
 				}
+				exit(0);
 				break;
 			default:
 				// Rodzic
@@ -128,7 +139,11 @@ int main()
 		printf("\nMiejsca    ");
 		for (int i = 0; i < PHILOS; i++)
 			printf("[ %c ] ", data->chairs[i]);
-		printf("\n");
+		printf("\n\n--- Status filozofów ---\n _ - myśli, w - czeka, l - lewy, r - prawy, e - je\n");
+		for (int i = 0; i < PHILOS; i++)
+		{
+			printf("   Filozof %d (status %c) jadł %d razy\n", i, data->status[i], data->meals[i]);
+		}
 		msleep(5);
 	}
 	shmdt(data);
