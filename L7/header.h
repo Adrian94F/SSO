@@ -10,17 +10,32 @@
 #include <time.h>
 #include <mqueue.h>
 #include <semaphore.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#define KROKI 10
+#define SRV_IP "127.0.0.1"
+#define SIZE 512
+#define PORT 9999
+#define SIZE 512
+#define SERVPORT 8000
+#define SERVADDR "127.0.0.1"
 
-#define BSIZE 4		//rozmiar bufora
-#define LSIZE 256	//długość linii
-
-typedef struct
+typedef enum 
 {
-	char buffer[BSIZE][LSIZE];
-	int head;
-	int tail;
-	int count;
-	sem_t mutex;
-	sem_t empty;
-	sem_t full;
-} bufor_t;
+	OPENR,
+	READ,
+	SHUTDOWN,
+	SAVE, 
+	CLOSE
+} type;
+
+typedef struct 
+{
+	type typ;
+	char buf[SIZE];
+	int handle;
+	int ile;
+} msg_t;
+
+typedef enum { false, true } bool;

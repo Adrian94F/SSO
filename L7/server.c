@@ -1,110 +1,50 @@
-// Proces odbierajacy komunikaty - wysyla udp_cli
-// Wspolpracuje z udp_cli
-// Kompilacja gcc udp_serw.c -o udp_serw -lrt
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h> 
-#define KROKI 10
-#define PORT 9999
-#define SIZE 512
-
-typedef enum { false, true } bool;
-
-bool enable = true;
-
-typedef enum {
-	OPENR,
-	READ,
-	SHUTDOWN,
-	SAVE, 
-	CLOSE
-} type;
-
-typedef struct {
-	type typ;
-	char buf[SIZE];
-	int handle;
-	int ile;
-} msg_t;
-
-void blad(char *s) {
-	perror(s);
-	exit(1);
-}
-
-int main(void) {
-	struct sockaddr_in adr_moj, adr_cli;
-	int s, i, slen=sizeof(adr_cli),snd, ile, blen=sizeof(msg_t);
-	char buf[SIZE];
-	msg_t msg;
-
-	gethostname(buf,sizeof(buf));
-	printf("Host: %s\n",buf);
-
-	s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if(s < 0) blad("socket");
-	printf("Gniazdko %d utworzone\n",s);
-	// Ustalenie adresu IP nadawcy
-	memset((char *) &adr_moj, 0, sizeof(adr_moj));
-	adr_moj.sin_family = AF_INET;
-	adr_moj.sin_port = htons(PORT);
-	adr_moj.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(s,(struct sockaddr *) &adr_moj, sizeof(adr_moj))==-1)
-		blad("bind");
-
-	bool save = false;
-	int handle;
-
-	do {
-		//odczyt zapytania
-		ile = recvfrom(s, &msg, blen, 0,(struct sockaddr *) &adr_cli, &slen);
-		if(ile < 0) blad("ilevfrom()");
-		printf(
-			"Odebrano komunikat z %s:%d o rozmiarze %d\n",
-			inet_ntoa(adr_cli.sin_addr), 
-			ntohs(adr_cli.sin_port), 
-			ile);
-
-		//wykonanie
-		switch (msg.typ) {
-			case OPENR:
-				msg.handle = open(msg.buf, O_RDWR);
-				//odpowiedź
-				sprintf(msg.buf, "%d", msg.handle);
-				break;
-			case READ:
-				msg.ile = read(msg.handle, msg.buf, SIZE);
-				break;
-			case CLOSE:
-				close(msg.handle);
-				break;
-			case SAVE:
-				if (save) {
-
-				} else {
-					handle = open(msg.buf, O_RDWR | O_CREAT);
-				}
-				break;
-			case SHUTDOWN:
-				enable = false;
-				//odpowiedź
-				sprintf(msg.buf, "OK! Shutting down.");
-				break;
-		}
-		snd = sendto(s, &msg, blen, 0,(struct sockaddr *) &adr_cli, slen);
-		if(snd < 0) 
-			blad("sendto()");
-		printf("wyslano odpowiedz o rozmiarze %d\n",snd);
-
-	}
-	while (enable);
-
-	close(s);
-	return 0;
-}
-
+#include "header.h"
+main (int argc,char ** argv) 
+{
+	int sock, newsock, pid, clen, port;
+	char buf[1024];
+	struct sockaddr_in cl_addr, serv_addr;
+	/* odczytanie numeru portu z linii komend */
+	if (argc>1)
+		port = atoi(argv[1]);
+	else
+		port = SERVPORT;
+	/* nadanie adresu gniazdku */
+	if ((sock=socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		perror("serwer: nie można utworzyć gniazdka");
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = INADDR_ANY;
+	serv_addr.sin_port = htons(port);
+	if (bind(sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
+		perror("serwer: nie można nadać gniazdku adresu");
+	listen(sock, 5);
+	/* od tej chwili wszystkie próby połączenia od klientów nie będą w programach
+	* klientów zwracały błędu "Connection refused", lecz * programy te będą blokowane
+	* do czasu, aż serwer zaakceptuje poszczególne * połączenia funkcją accept()
+	*/
+	while(1) 
+	{ /* oczekiwanie na połączenia z klientami */
+		clen = sizeof(cl_addr);
+		newsock = accept(sock, (struct sockaddr*) &cl_addr, &clen);
+		if (newsock < 0)
+			perror("serwer: błąd w funkcji accept()");
+		else 
+		{
+			switch (pid=fork()) 
+			{
+				case 0: /* dziecko -- obsługuje dopiero co nawiązane połączenie */
+					close (sock);
+					read(newsock, buf, sizeof(buf)); 
+					write(newsock, "received: %s", buf);
+					shutdown(newsock, 2);
+					close(newsock);
+					exit(0);
+				case (-1):
+					perror("błąd podczas fork()"); 
+					break;
+			} /* switch */
+		} /* else -- rodzic */
+		close (newsock); /* rodzic wraca do oczekiwania na nowe połączenia */
+	} /* while */
+} /* main */

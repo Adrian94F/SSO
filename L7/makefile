@@ -1,7 +1,10 @@
-all: server client
+CC = gcc
+CFLAGS = -Wall -pedantic -g -lm -lrt -lpthread
+
+all: server client serverJ clientJ
+
 server: server.c
-	gcc server.c -o server -g -lm -lrt -pthread
-client: client.c
-	gcc client.c -o client -g -lm -lrt -pthread
+	$(CC) -o $@ $< $(CFLAGS)
+
 clean:
-	rm init server client *.o
+	rm server client serverJ clientJ
