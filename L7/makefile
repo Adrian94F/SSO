@@ -1,10 +1,12 @@
 CC = gcc
 CFLAGS = -Wall -pedantic -g -lm -lrt -lpthread
 
-all: server client serverJ clientJ
+all: server client 
 
 server: server.c
 	$(CC) -o $@ $< $(CFLAGS)
+client: client.c
+	$(CC) -o $@ $< $(CFLAGS)
 
 clean:
-	rm server client serverJ clientJ
+	rm server client 

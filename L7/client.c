@@ -1,50 +1,83 @@
-#include "header.h"
-main (int argc,char ** argv)
+// Proces wysyla a potem odbiera komunikaty udp
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <string.h>
+#include <signal.h>
+#include <stdlib.h>
+#define BUFLEN 80
+#define LWIADOMOSCI 10
+#define PORT 9865
+#define SRV_IP "127.0.0.1"
+
+typedef struct 
 {
-	int sock, n, nw;
-	struct sockaddr_in serv_addr;
-	char *serv_ip;
-	int serv_port;
-	char buf[1024];
-	if (argc>=3) 
+	char buf[BUFLEN];
+} msgt;
+
+int sock;
+
+void intHandler(int signum)
+{
+	msgt msg;
+	if(shutdown(sock, SHUT_WR) < 0)											// zamknij gniazdka do pisania
 	{
-		serv_ip = argv[1]; 
-		serv_port = atoi(argv[2]);
-	} 
-	else 
-	{
-		serv_ip = SERVADDR; serv_port = SERVPORT;
+		perror(" bład podczas zamykania gniazdka do pisania");
+		exit(EXIT_FAILURE);
 	}
-	/* ustalenie adresu serwera */
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(serv_ip);
-	serv_addr.sin_port = htons(serv_port);
-	if ((sock=socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		perror("klient: nie można utworzyć gniazdka");
-	if (connect(sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-		perror("klient: nie można połączyć się z serwerem");
-	/* od tego momentu gniazdko sock jest połączone i możemy je traktować
-	   tak, jak każdy inny deskryptor pliku czy strumienia pipe/fifo
-	*/
-	/* czytanie/pisanie danych do serwera */
-	while ((n=read(sock, buf, sizeof(buf))) >0) 
+	recv(sock, &(msg.buf), sizeof(msg.buf), 0);
+	close(sock);
+	printf("\n+++ Gniazdko do pisania zamknięte\n+++ Umieram...\n");
+	exit(0);
+}
+
+int main(int argc, char * argv[]) 
+{
+	signal(SIGINT, intHandler);												// sygnał SIGINT
+
+	struct sockaddr_in adr_serw;
+	int i, snd, rec, port;
+	msgt msg;
+
+	port = argc > 1 ? atoi(argv[1]) : PORT;									// port z argumentu
+		
+
+	memset(&adr_serw, 0, sizeof(adr_serw));									// adres serwera
+	adr_serw.sin_family = AF_INET;
+	adr_serw.sin_addr.s_addr = inet_addr(SRV_IP);
+	adr_serw.sin_port = htons(port);
+
+	if ((sock=socket(AF_INET, SOCK_STREAM, 0)) < 0)							// stwórz gniazdko
 	{
-		sprintf(&buf, "coś bardzo waznego");
-		nw = write(sock, buf, sizeof(buf));
-		if (0 /* koniec połączenia inicjowany przez klienta: */) 
+		perror(" nie można utworzyć gniazdka");
+		exit(EXIT_FAILURE);
+	}
+	printf("+++ Utworzyłem gniazdko %d\n",sock);
+
+	if (connect(sock, (struct sockaddr*) &adr_serw, sizeof(adr_serw)) < 0)	// połącz z serwerem
+		perror(" nie można połączyć się z serwerem");
+
+	for (i = 0; i < LWIADOMOSCI; i++) 										// ślij wiadomości co sekundę
+	{
+		sprintf(msg.buf, "Wiadomość nr %d, od klienta", i);
+		if((snd = send(sock, &msg.buf, sizeof(msg.buf), 0)) < 0)
 		{
-			write(sock, "koniec\n", 8);
-			shutdown(sock, 1); /* nie będziemy już pisać, oczekujemy nadal na EOF */
+			perror(" nie można wysłać wiadomości");
+			exit(EXIT_FAILURE);
 		}
+		printf("+++ Wysłałem komunikat nr %d\n+++ Czekam na odpowiedź\n", i);
+		
+		if((rec = recv(sock, &msg.buf, sizeof(msg.buf), 0)) < 0)
+		{
+			perror(" nie można odebrać wiadomości");
+			exit(EXIT_FAILURE);
+		}
+		printf("    \"%s\"\n", msg.buf);
+		sleep(1);
 	}
-	if (n==0) 
-	{ /* EOF */
-		shutdown(sock, 2);
-		close(sock);
-	} 
-	else 
-	{
-		perror("błąd funkcji read()");
-	}
+	intHandler(0);															// zamknij gniazdka
+	return 0;
 }
