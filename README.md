@@ -6,3 +6,5 @@
 - L4 - semafory "5 filozofów"
 - L5 - sygnały "5 filozofów"
 - L6 - mutexy "konta"
+- L7 - TCP
+- L8 - UDP
